@@ -13,11 +13,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class HealthController {
 
 	@GetMapping
-	public ResponseEntity<Map<String, Object>> health() {
+	public ResponseEntity<ApiResponse<Map<String, Object>>> health() {
 		return ResponseEntity.ok(
-				Map.of(
-						"status", "UP",
-						"service", "dineOps",
-						"timestamp", Instant.now().toString()));
+				ApiResponse.success(
+						"Service is healthy",
+						Map.of(
+								"status", "UP",
+								"service", "dineOps",
+								"timestamp", Instant.now().toString())));
 	}
 }
