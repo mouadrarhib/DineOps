@@ -39,3 +39,37 @@ mvn spring-boot:run
 ```
 
 After persisting them, restart your terminal before running Maven.
+
+## Run with profiles
+
+Available profiles:
+
+- `local`
+- `test`
+- `prod`
+
+### PowerShell commands
+
+Run with `local` profile:
+
+```powershell
+mvn spring-boot:run "-Dspring-boot.run.profiles=local"
+```
+
+Run with `test` profile:
+
+```powershell
+mvn spring-boot:run "-Dspring-boot.run.profiles=test"
+```
+
+Run with `prod` profile:
+
+```powershell
+mvn spring-boot:run "-Dspring-boot.run.profiles=prod"
+```
+
+Notes:
+
+- `local` uses local-friendly defaults and supports `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` overrides.
+- `test` uses `TEST_DB_URL`, `TEST_DB_USERNAME`, `TEST_DB_PASSWORD` and disables Flyway.
+- `prod` requires `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`.
