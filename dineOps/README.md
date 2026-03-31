@@ -1,5 +1,27 @@
 # DineOps Backend
 
+## Project vision and architecture
+
+### Vision
+
+DineOps is a backend platform for multi-branch restaurant operations. The goal is to provide one consistent system for authentication, branch-scoped operations, menu and order flows, inventory tracking, and operational reporting.
+
+### Architecture direction
+
+- Domain-driven package structure by business module (`auth`, `user`, `restaurant`, `branch`, `menu`, `order`, `inventory`, `reservation`, `notification`, `reporting`, `audit`).
+- Shared cross-cutting layer in `common` for configuration, security, exception handling, API response format, enums, and utilities.
+- REST API first with Spring Boot + Spring Security + validation.
+- PostgreSQL as primary transactional store with Flyway migrations for schema evolution.
+- Redis for caching and RabbitMQ for asynchronous workflows.
+- Environment-based profiles (`local`, `test`, `prod`) for predictable behavior across development, test, and production.
+- Docker and Docker Compose support for reproducible local infrastructure and deployment parity.
+
+### Current implementation baseline
+
+- Global security configuration with public health endpoint.
+- Unified API response envelope and base exception handling (`@RestControllerAdvice`).
+- Containerized runtime setup for app, PostgreSQL, Redis, and RabbitMQ.
+
 ## Environment variables (Windows)
 
 This project reads database credentials from environment variables:
