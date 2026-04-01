@@ -41,6 +41,10 @@ logging:
     level: "%5p [requestId:%X{requestId:-} userId:%X{userId:-}]"
 
 app:
+  jwt:
+    secret: ${JWT_SECRET:0123456789012345678901234567890123456789012345678901234567890123}
+    access-token-expiration-minutes: ${JWT_ACCESS_EXP_MINUTES:15}
+    refresh-token-expiration-days: ${JWT_REFRESH_EXP_DAYS:7}
   security:
     cors:
       allowed-origins: "*"

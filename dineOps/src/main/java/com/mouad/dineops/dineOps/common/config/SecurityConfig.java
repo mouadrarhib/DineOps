@@ -8,6 +8,7 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -20,6 +21,9 @@ import java.util.List;
 
 import com.mouad.dineops.dineOps.common.security.AuditMetadataFilter;
 import com.mouad.dineops.dineOps.common.security.RequestLoggingFilter;
+import com.mouad.dineops.dineOps.auth.security.CustomUserDetailsService;
+import com.mouad.dineops.dineOps.auth.security.JwtAuthenticationEntryPoint;
+import com.mouad.dineops.dineOps.auth.security.JwtAuthenticationFilter;
 import org.springframework.beans.factory.annotation.Value;
 
 @Configuration
@@ -29,6 +33,10 @@ public class SecurityConfig {
 	private List<String> allowedOrigins;
 
 	private static final String[] PUBLIC_ENDPOINTS = {
+			"/api/auth/login",
+			"/api/auth/refresh",
+			"/api/auth/logout",
+			"/api/auth/seed",
 			"/api/health",
 			"/api/health/**",
 			"/actuator/health",
@@ -45,20 +53,34 @@ public class SecurityConfig {
 	public SecurityFilterChain securityFilterChain(
 			HttpSecurity http,
 			AuditMetadataFilter auditMetadataFilter,
-			RequestLoggingFilter requestLoggingFilter) throws Exception {
+			RequestLoggingFilter requestLoggingFilter,
+			JwtAuthenticationFilter jwtAuthenticationFilter,
+			JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint,
+			DaoAuthenticationProvider daoAuthenticationProvider) throws Exception {
 		http
 				.cors(Customizer.withDefaults())
 				.csrf(csrf -> csrf.disable())
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+				.authenticationProvider(daoAuthenticationProvider)
+				.exceptionHandling(exception -> exception.authenticationEntryPoint(jwtAuthenticationEntryPoint))
 				.addFilterBefore(auditMetadataFilter, UsernamePasswordAuthenticationFilter.class)
+				.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
 				.addFilterAfter(requestLoggingFilter, AuditMetadataFilter.class)
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(PUBLIC_ENDPOINTS).permitAll()
 						.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-						.anyRequest().authenticated())
-				.httpBasic(Customizer.withDefaults());
+						.anyRequest().authenticated());
 
 		return http.build();
+	}
+
+	@Bean
+	public DaoAuthenticationProvider daoAuthenticationProvider(
+			CustomUserDetailsService customUserDetailsService,
+			PasswordEncoder passwordEncoder) {
+		DaoAuthenticationProvider provider = new DaoAuthenticationProvider(customUserDetailsService);
+		provider.setPasswordEncoder(passwordEncoder);
+		return provider;
 	}
 
 	@Bean
