@@ -13,3 +13,34 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
     show-sql: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+info:
+  app:
+    name: dineOps
+    description: Multi-branch restaurant operations backend
+    version: 0.0.1-SNAPSHOT
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  pattern:
+    level: "%5p [requestId:%X{requestId:-} userId:%X{userId:-}]"
+
+app:
+  security:
+    cors:
+      allowed-origins: "*"
