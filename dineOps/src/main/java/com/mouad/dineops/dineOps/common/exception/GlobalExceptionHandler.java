@@ -1,10 +1,9 @@
 package com.mouad.dineops.dineOps.common.exception;
 
-import java.util.Map;
+import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -24,19 +23,19 @@ public class GlobalExceptionHandler {
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)
-	public ResponseEntity<ApiResponse<Map<String, String>>> handleValidationException(
+	public ResponseEntity<ApiResponse<ValidationErrorResponse>> handleValidationException(
 			MethodArgumentNotValidException exception) {
-		Map<String, String> errors = exception.getBindingResult()
+		List<ValidationErrorResponse.FieldValidationError> errors = exception.getBindingResult()
 				.getFieldErrors()
 				.stream()
-				.collect(java.util.stream.Collectors.toMap(
-						FieldError::getField,
-						error -> error.getDefaultMessage() == null ? "Invalid value" : error.getDefaultMessage(),
-						(existing, replacement) -> existing));
+				.map(error -> new ValidationErrorResponse.FieldValidationError(
+						error.getField(),
+						error.getDefaultMessage() == null ? "Invalid value" : error.getDefaultMessage()))
+				.toList();
 
 		return ResponseEntity
 				.status(HttpStatus.BAD_REQUEST)
-				.body(ApiResponse.error("Validation failed", errors));
+				.body(ApiResponse.error("Validation failed", new ValidationErrorResponse(errors)));
 	}
 
 	@ExceptionHandler(ConstraintViolationException.class)
