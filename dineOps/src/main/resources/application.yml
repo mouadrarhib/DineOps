@@ -41,6 +41,13 @@ logging:
     level: "%5p [requestId:%X{requestId:-} userId:%X{userId:-}]"
 
 app:
+  bootstrap:
+    super-admin:
+      first-name: ${APP_BOOTSTRAP_SUPER_ADMIN_FIRST_NAME:Super}
+      last-name: ${APP_BOOTSTRAP_SUPER_ADMIN_LAST_NAME:Admin}
+      email: ${APP_BOOTSTRAP_SUPER_ADMIN_EMAIL:super.admin@dineops.local}
+      phone: ${APP_BOOTSTRAP_SUPER_ADMIN_PHONE:+212600000001}
+      password: ${APP_BOOTSTRAP_SUPER_ADMIN_PASSWORD:Admin@123}
   jwt:
     secret: ${JWT_SECRET:0123456789012345678901234567890123456789012345678901234567890123}
     access-token-expiration-minutes: ${JWT_ACCESS_EXP_MINUTES:15}
