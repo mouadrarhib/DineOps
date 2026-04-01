@@ -2,6 +2,10 @@ package com.mouad.dineops.dineOps.common.entity;
 
 import java.time.Instant;
 
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -10,6 +14,9 @@ import jakarta.persistence.MappedSuperclass;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 
+@Getter
+@Setter
+@NoArgsConstructor
 @MappedSuperclass
 public abstract class BaseEntity {
 
@@ -35,15 +42,4 @@ public abstract class BaseEntity {
 		updatedAt = Instant.now();
 	}
 
-	public Long getId() {
-		return id;
-	}
-
-	public Instant getCreatedAt() {
-		return createdAt;
-	}
-
-	public Instant getUpdatedAt() {
-		return updatedAt;
-	}
 }
