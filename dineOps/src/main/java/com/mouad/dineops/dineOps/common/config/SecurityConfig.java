@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -22,11 +23,13 @@ import java.util.List;
 import com.mouad.dineops.dineOps.common.security.AuditMetadataFilter;
 import com.mouad.dineops.dineOps.common.security.RequestLoggingFilter;
 import com.mouad.dineops.dineOps.auth.security.CustomUserDetailsService;
+import com.mouad.dineops.dineOps.auth.security.JwtAccessDeniedHandler;
 import com.mouad.dineops.dineOps.auth.security.JwtAuthenticationEntryPoint;
 import com.mouad.dineops.dineOps.auth.security.JwtAuthenticationFilter;
 import org.springframework.beans.factory.annotation.Value;
 
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfig {
 
 	@Value("${app.security.cors.allowed-origins:*}")
@@ -56,13 +59,16 @@ public class SecurityConfig {
 			RequestLoggingFilter requestLoggingFilter,
 			JwtAuthenticationFilter jwtAuthenticationFilter,
 			JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint,
+ 			JwtAccessDeniedHandler jwtAccessDeniedHandler,
 			DaoAuthenticationProvider daoAuthenticationProvider) throws Exception {
 		http
 				.cors(Customizer.withDefaults())
 				.csrf(csrf -> csrf.disable())
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.authenticationProvider(daoAuthenticationProvider)
-				.exceptionHandling(exception -> exception.authenticationEntryPoint(jwtAuthenticationEntryPoint))
+				.exceptionHandling(exception -> exception
+						.authenticationEntryPoint(jwtAuthenticationEntryPoint)
+						.accessDeniedHandler(jwtAccessDeniedHandler))
 				.addFilterBefore(auditMetadataFilter, UsernamePasswordAuthenticationFilter.class)
 				.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
 				.addFilterAfter(requestLoggingFilter, AuditMetadataFilter.class)

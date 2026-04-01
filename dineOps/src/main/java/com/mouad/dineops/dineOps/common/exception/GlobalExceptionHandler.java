@@ -4,6 +4,8 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authorization.AuthorizationDeniedException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -59,6 +61,20 @@ public class GlobalExceptionHandler {
 		return ResponseEntity
 				.status(HttpStatus.UNAUTHORIZED)
 				.body(ApiResponse.error("Invalid credentials"));
+	}
+
+	@ExceptionHandler(AccessDeniedException.class)
+	public ResponseEntity<ApiResponse<Void>> handleAccessDeniedException(AccessDeniedException exception) {
+		return ResponseEntity
+				.status(HttpStatus.FORBIDDEN)
+				.body(ApiResponse.error("Forbidden"));
+	}
+
+	@ExceptionHandler(AuthorizationDeniedException.class)
+	public ResponseEntity<ApiResponse<Void>> handleAuthorizationDeniedException(AuthorizationDeniedException exception) {
+		return ResponseEntity
+				.status(HttpStatus.FORBIDDEN)
+				.body(ApiResponse.error("Forbidden"));
 	}
 
 	@ExceptionHandler(Exception.class)
