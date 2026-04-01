@@ -22,6 +22,18 @@ DineOps is a backend platform for multi-branch restaurant operations. The goal i
 - Unified API response envelope and base exception handling (`@RestControllerAdvice`).
 - Containerized runtime setup for app, PostgreSQL, Redis, and RabbitMQ.
 
+## Coding conventions
+
+- Use package-by-feature for business modules (`auth`, `user`, `restaurant`, `branch`, `menu`, `order`, `inventory`, `reservation`, `notification`, `reporting`, `audit`).
+- Keep shared cross-cutting code only in `common` (`config`, `exception`, `response`, `security`, `util`, `enums`).
+- Name REST endpoints with plural, resource-based paths and keep controller methods thin.
+- Return `ApiResponse<T>` for successful and error responses to keep response shape consistent.
+- Throw domain-focused custom exceptions (`NotFoundException`, `BadRequestException`, `ConflictException`, etc.) and let global handlers format responses.
+- Extend `BaseEntity` for persistence models to get `id`, `createdAt`, and `updatedAt` automatically.
+- Keep validation in request DTOs and let global validation error handlers build standardized error payloads.
+- Keep config externalized by profile (`local`, `test`, `prod`) and avoid hardcoded credentials.
+- For migrations, add Flyway scripts under `src/main/resources/db/migration` using `V{number}__{description}.sql` naming.
+
 ## Environment variables (Windows)
 
 This project reads database credentials from environment variables:
