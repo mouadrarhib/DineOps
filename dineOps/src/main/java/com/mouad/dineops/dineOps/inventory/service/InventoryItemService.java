@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.mouad.dineops.dineOps.auth.security.AppUserPrincipal;
 import com.mouad.dineops.dineOps.branch.entity.Branch;
 import com.mouad.dineops.dineOps.branch.repository.BranchRepository;
+import com.mouad.dineops.dineOps.common.enums.BranchStatus;
 import com.mouad.dineops.dineOps.common.enums.SystemRole;
 import com.mouad.dineops.dineOps.common.exception.BadRequestException;
 import com.mouad.dineops.dineOps.common.exception.ConflictException;
@@ -55,6 +56,7 @@ public class InventoryItemService {
 	public InventoryItemResponse createInventoryItem(CreateInventoryItemRequest request) {
 		enforceBranchScope(request.branchId());
 		validateNonNegative(request.quantityAvailable(), "Quantity available must be zero or positive");
+		validateScale(request.quantityAvailable(), "Quantity available can have at most 3 decimal places");
 
 		if (inventoryItemRepository.existsByBranchIdAndIngredientId(request.branchId(), request.ingredientId())) {
 			throw new ConflictException("Inventory item already exists for this branch and ingredient");
@@ -62,6 +64,7 @@ public class InventoryItemService {
 
 		Branch branch = findBranch(request.branchId());
 		Ingredient ingredient = findIngredient(request.ingredientId());
+		validateInventoryConsistency(branch, ingredient);
 
 		InventoryItem item = new InventoryItem();
 		item.setBranch(branch);
@@ -90,11 +93,16 @@ public class InventoryItemService {
 		if (request.quantityAdded() == null || request.quantityAdded().signum() <= 0) {
 			throw new BadRequestException("Restock quantity must be greater than zero");
 		}
+		validateScale(request.quantityAdded(), "Restock quantity can have at most 3 decimal places");
 
 		InventoryItem item = findInventoryItem(inventoryItemId);
 		enforceBranchScope(item.getBranch().getId());
+		validateInventoryConsistency(item.getBranch(), item.getIngredient());
 
-		item.setQuantityAvailable(item.getQuantityAvailable().add(request.quantityAdded()));
+		BigDecimal updatedQuantity = item.getQuantityAvailable().add(request.quantityAdded());
+		validateNonNegative(updatedQuantity, "Stock cannot be negative");
+		validateScale(updatedQuantity, "Stock can have at most 3 decimal places");
+		item.setQuantityAvailable(updatedQuantity);
 		item.setLastRestockedAt(Instant.now());
 
 		return toResponse(inventoryItemRepository.save(item));
@@ -103,10 +111,14 @@ public class InventoryItemService {
 	@Transactional(readOnly = true)
 	public List<InventoryItemResponse> listLowStockByBranch(Long branchId) {
 		enforceBranchScope(branchId);
-		findBranch(branchId);
+		Branch branch = findBranch(branchId);
+		if (branch.getStatus() != BranchStatus.ACTIVE) {
+			throw new BadRequestException("Cannot inspect stock for an inactive branch");
+		}
 
-		return inventoryItemRepository.findLowStockByBranchId(branchId)
+		return inventoryItemRepository.findByBranchIdOrderByIngredientNameAsc(branchId)
 				.stream()
+				.filter(this::isLowStock)
 				.map(this::toResponse)
 				.toList();
 	}
@@ -130,6 +142,36 @@ public class InventoryItemService {
 		if (value == null || value.signum() < 0) {
 			throw new BadRequestException(message);
 		}
+	}
+
+	private void validateScale(BigDecimal value, String message) {
+		if (value != null && value.scale() > 3) {
+			throw new BadRequestException(message);
+		}
+	}
+
+	private void validateInventoryConsistency(Branch branch, Ingredient ingredient) {
+		if (branch.getStatus() != BranchStatus.ACTIVE) {
+			throw new BadRequestException("Inventory operations require an active branch");
+		}
+		if (!ingredient.isActive()) {
+			throw new BadRequestException("Inventory operations require an active ingredient");
+		}
+		BigDecimal threshold = ingredient.getMinThreshold();
+		if (threshold != null) {
+			validateNonNegative(threshold, "Ingredient minimum threshold must be zero or positive");
+			validateScale(threshold, "Ingredient minimum threshold can have at most 3 decimal places");
+		}
+	}
+
+	private boolean isLowStock(InventoryItem item) {
+		BigDecimal threshold = item.getIngredient().getMinThreshold() == null
+				? BigDecimal.ZERO
+				: item.getIngredient().getMinThreshold();
+		if (threshold.signum() < 0) {
+			throw new BadRequestException("Ingredient minimum threshold must be zero or positive");
+		}
+		return item.getQuantityAvailable().compareTo(threshold) <= 0;
 	}
 
 	private InventoryItemResponse toResponse(InventoryItem item) {
