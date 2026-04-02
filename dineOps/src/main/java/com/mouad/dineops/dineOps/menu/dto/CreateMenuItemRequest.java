@@ -9,6 +9,7 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 public record CreateMenuItemRequest(
+		@NotNull Long branchId,
 		@NotNull Long categoryId,
 		@NotBlank @Size(max = 150) String name,
 		String description,

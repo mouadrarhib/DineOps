@@ -3,6 +3,9 @@ package com.mouad.dineops.dineOps.menu.service;
 import java.util.List;
 import java.util.Set;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -10,8 +13,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.mouad.dineops.dineOps.auth.security.AppUserPrincipal;
 import com.mouad.dineops.dineOps.common.enums.SystemRole;
+import com.mouad.dineops.dineOps.common.exception.BadRequestException;
 import com.mouad.dineops.dineOps.common.exception.ForbiddenException;
 import com.mouad.dineops.dineOps.common.exception.NotFoundException;
+import com.mouad.dineops.dineOps.common.response.PagedResponse;
 import com.mouad.dineops.dineOps.menu.dto.CreateMenuItemRequest;
 import com.mouad.dineops.dineOps.menu.dto.MenuItemResponse;
 import com.mouad.dineops.dineOps.menu.dto.UpdateMenuItemRequest;
@@ -44,8 +49,11 @@ public class MenuItemService {
 
 	@Transactional
 	public MenuItemResponse createMenuItem(CreateMenuItemRequest request) {
+		enforceBranchScope(request.branchId());
 		MenuCategory category = findCategory(request.categoryId());
-		enforceBranchScope(category.getBranch().getId());
+		validateCategoryBranch(category, request.branchId());
+		ensureCategoryIsActive(category);
+		validatePrice(request.price());
 
 		MenuItem item = new MenuItem();
 		item.setCategory(category);
@@ -60,12 +68,19 @@ public class MenuItemService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<MenuItemResponse> listByBranch(Long branchId) {
+	public PagedResponse<MenuItemResponse> listByBranch(
+			Long branchId,
+			Boolean active,
+			Boolean available,
+			String search,
+			int page,
+			int size) {
 		enforceBranchScope(branchId);
-		return menuItemRepository.findByCategoryBranchIdOrderByNameAsc(branchId)
-				.stream()
-				.map(this::toResponse)
-				.toList();
+
+		PageRequest pageRequest = PageRequest.of(page, size, Sort.by("name").ascending().and(Sort.by("id").ascending()));
+		Page<MenuItem> rawPage = menuItemRepository.findPageByBranchAndFilters(branchId, active, available, search, pageRequest);
+		Page<MenuItemResponse> responsePage = rawPage.map(this::toResponse);
+		return PagedResponse.from(responsePage);
 	}
 
 	@Transactional(readOnly = true)
@@ -79,7 +94,13 @@ public class MenuItemService {
 	public MenuItemResponse updateMenuItem(Long menuItemId, UpdateMenuItemRequest request) {
 		MenuItem item = findMenuItem(menuItemId);
 		MenuCategory category = findCategory(request.categoryId());
-		enforceBranchScope(category.getBranch().getId());
+		enforceBranchScope(request.branchId());
+		validateCategoryBranch(category, request.branchId());
+		if (!item.getCategory().getBranch().getId().equals(request.branchId())) {
+			throw new BadRequestException("Menu item does not belong to the provided branch");
+		}
+		ensureCategoryIsActive(category);
+		validatePrice(request.price());
 
 		item.setCategory(category);
 		item.setName(request.name());
@@ -112,6 +133,24 @@ public class MenuItemService {
 	private MenuCategory findCategory(Long categoryId) {
 		return menuCategoryRepository.findById(categoryId)
 				.orElseThrow(() -> new NotFoundException("Menu category not found: " + categoryId));
+	}
+
+	private void validateCategoryBranch(MenuCategory category, Long branchId) {
+		if (!category.getBranch().getId().equals(branchId)) {
+			throw new BadRequestException("Menu category does not belong to the specified branch");
+		}
+	}
+
+	private void ensureCategoryIsActive(MenuCategory category) {
+		if (!category.isActive()) {
+			throw new BadRequestException("Inactive category cannot receive new menu items");
+		}
+	}
+
+	private void validatePrice(java.math.BigDecimal price) {
+		if (price == null || price.signum() <= 0) {
+			throw new BadRequestException("Price must be positive");
+		}
 	}
 
 	private MenuItemResponse toResponse(MenuItem item) {
