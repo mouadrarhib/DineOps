@@ -1,12 +1,15 @@
 package com.mouad.dineops.dineOps.order.service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -19,12 +22,19 @@ import com.mouad.dineops.dineOps.auth.security.AppUserPrincipal;
 import com.mouad.dineops.dineOps.branch.entity.Branch;
 import com.mouad.dineops.dineOps.branch.repository.BranchRepository;
 import com.mouad.dineops.dineOps.common.enums.BranchStatus;
+import com.mouad.dineops.dineOps.common.enums.InventoryMovementType;
 import com.mouad.dineops.dineOps.common.enums.OrderStatus;
 import com.mouad.dineops.dineOps.common.enums.SystemRole;
 import com.mouad.dineops.dineOps.common.exception.BadRequestException;
 import com.mouad.dineops.dineOps.common.exception.ForbiddenException;
 import com.mouad.dineops.dineOps.common.exception.NotFoundException;
+import com.mouad.dineops.dineOps.inventory.entity.InventoryItem;
+import com.mouad.dineops.dineOps.inventory.entity.InventoryMovement;
+import com.mouad.dineops.dineOps.inventory.repository.InventoryItemRepository;
+import com.mouad.dineops.dineOps.inventory.repository.InventoryMovementRepository;
 import com.mouad.dineops.dineOps.menu.entity.MenuItem;
+import com.mouad.dineops.dineOps.menu.entity.MenuItemIngredient;
+import com.mouad.dineops.dineOps.menu.repository.MenuItemIngredientRepository;
 import com.mouad.dineops.dineOps.menu.repository.MenuItemRepository;
 import com.mouad.dineops.dineOps.order.dto.CreateOrderItemRequest;
 import com.mouad.dineops.dineOps.order.dto.CreateOrderRequest;
@@ -56,6 +66,9 @@ public class OrderService {
 	private final OrderItemRepository orderItemRepository;
 	private final BranchRepository branchRepository;
 	private final MenuItemRepository menuItemRepository;
+	private final MenuItemIngredientRepository menuItemIngredientRepository;
+	private final InventoryItemRepository inventoryItemRepository;
+	private final InventoryMovementRepository inventoryMovementRepository;
 	private final UserRepository userRepository;
 	private final StaffAssignmentRepository staffAssignmentRepository;
 
@@ -64,12 +77,18 @@ public class OrderService {
 			OrderItemRepository orderItemRepository,
 			BranchRepository branchRepository,
 			MenuItemRepository menuItemRepository,
+			MenuItemIngredientRepository menuItemIngredientRepository,
+			InventoryItemRepository inventoryItemRepository,
+			InventoryMovementRepository inventoryMovementRepository,
 			UserRepository userRepository,
 			StaffAssignmentRepository staffAssignmentRepository) {
 		this.customerOrderRepository = customerOrderRepository;
 		this.orderItemRepository = orderItemRepository;
 		this.branchRepository = branchRepository;
 		this.menuItemRepository = menuItemRepository;
+		this.menuItemIngredientRepository = menuItemIngredientRepository;
+		this.inventoryItemRepository = inventoryItemRepository;
+		this.inventoryMovementRepository = inventoryMovementRepository;
 		this.userRepository = userRepository;
 		this.staffAssignmentRepository = staffAssignmentRepository;
 	}
@@ -85,8 +104,6 @@ public class OrderService {
 		}
 
 		String normalizedSource = normalizeSource(request.source());
-		BigDecimal taxAmount = normalizeTaxAmount(request.taxAmount());
-
 		User createdBy = getCurrentUser();
 
 		BigDecimal subtotal = BigDecimal.ZERO;
@@ -100,8 +117,10 @@ public class OrderService {
 			MenuItem menuItem = findMenuItem(itemRequest.menuItemId());
 			validateOrderMenuItem(branch.getId(), menuItem);
 
-			BigDecimal unitPrice = menuItem.getPrice();
-			BigDecimal lineTotal = unitPrice.multiply(BigDecimal.valueOf(itemRequest.quantity()));
+			BigDecimal unitPrice = menuItem.getPrice().setScale(2, RoundingMode.HALF_UP);
+			BigDecimal lineTotal = unitPrice
+					.multiply(BigDecimal.valueOf(itemRequest.quantity()))
+					.setScale(2, RoundingMode.HALF_UP);
 
 			OrderItem orderItem = new OrderItem();
 			orderItem.setMenuItem(menuItem);
@@ -114,6 +133,10 @@ public class OrderService {
 			subtotal = subtotal.add(lineTotal);
 		}
 
+		subtotal = subtotal.setScale(2, RoundingMode.HALF_UP);
+		BigDecimal taxAmount = calculateTaxAmount(subtotal, request.taxRatePercent(), request.taxAmount());
+		BigDecimal totalAmount = subtotal.add(taxAmount).setScale(2, RoundingMode.HALF_UP);
+
 		CustomerOrder order = new CustomerOrder();
 		order.setBranch(branch);
 		order.setOrderNumber(generateOrderNumber());
@@ -121,7 +144,7 @@ public class OrderService {
 		order.setSource(normalizedSource);
 		order.setSubtotal(subtotal);
 		order.setTaxAmount(taxAmount);
-		order.setTotalAmount(subtotal.add(taxAmount));
+		order.setTotalAmount(totalAmount);
 		order.setNotes(request.notes());
 		order.setCreatedBy(createdBy);
 
@@ -158,7 +181,31 @@ public class OrderService {
 
 	@Transactional
 	public OrderResponse confirmOrder(Long orderId) {
-		return transitionOrder(orderId, OrderStatus.PENDING, OrderStatus.CONFIRMED);
+		CustomerOrder order = findOrder(orderId);
+		enforceBranchScope(order.getBranch().getId());
+
+		if (order.getStatus() != OrderStatus.PENDING) {
+			throw new BadRequestException("Invalid order status transition from " + order.getStatus() + " to CONFIRMED");
+		}
+
+		ensureBranchActive(order.getBranch());
+		List<OrderItem> orderItems = orderItemRepository.findByOrderIdOrderByIdAsc(order.getId());
+		if (orderItems.isEmpty()) {
+			throw new BadRequestException("Order must contain at least one item");
+		}
+
+		validateOrderedItemsForConfirmation(order, orderItems);
+
+		Map<Long, BigDecimal> requiredByIngredient = new HashMap<>();
+		Map<Long, MenuItemIngredient> ingredientSamples = aggregateIngredientRequirements(orderItems, requiredByIngredient);
+
+		User actor = getCurrentUser();
+		deductInventoryForConfirmation(order, requiredByIngredient, ingredientSamples, actor);
+
+		order.setStatus(OrderStatus.CONFIRMED);
+		order.setConfirmedAt(Instant.now());
+		CustomerOrder saved = customerOrderRepository.save(order);
+		return toOrderResponse(saved, orderItems);
 	}
 
 	@Transactional
@@ -267,6 +314,22 @@ public class OrderService {
 		return normalized;
 	}
 
+	private BigDecimal calculateTaxAmount(BigDecimal subtotal, BigDecimal taxRatePercent, BigDecimal explicitTaxAmount) {
+		if (taxRatePercent != null) {
+			if (taxRatePercent.signum() < 0) {
+				throw new BadRequestException("Tax rate percent must be zero or positive");
+			}
+			if (taxRatePercent.scale() > 4) {
+				throw new BadRequestException("Tax rate percent can have at most 4 decimal places");
+			}
+			return subtotal
+					.multiply(taxRatePercent)
+					.divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+		}
+
+		return normalizeTaxAmount(explicitTaxAmount);
+	}
+
 	private String generateOrderNumber() {
 		for (int attempt = 0; attempt < 10; attempt++) {
 			String candidate = "ORD-" + ORDER_NUMBER_TIME_FORMAT.format(Instant.now()) + "-"
@@ -282,6 +345,97 @@ public class OrderService {
 		if (branch.getStatus() != BranchStatus.ACTIVE) {
 			throw new BadRequestException("Orders can only be created for active branches");
 		}
+	}
+
+	private void validateOrderedItemsForConfirmation(CustomerOrder order, List<OrderItem> orderItems) {
+		Long branchId = order.getBranch().getId();
+		for (OrderItem orderItem : orderItems) {
+			MenuItem menuItem = orderItem.getMenuItem();
+			if (!menuItem.getCategory().getBranch().getId().equals(branchId)) {
+				throw new BadRequestException("Order contains an item from a different branch");
+			}
+			validateOrderMenuItem(branchId, menuItem);
+		}
+	}
+
+	private Map<Long, MenuItemIngredient> aggregateIngredientRequirements(
+			List<OrderItem> orderItems,
+			Map<Long, BigDecimal> requiredByIngredient) {
+		List<Long> menuItemIds = orderItems.stream()
+				.map(item -> item.getMenuItem().getId())
+				.distinct()
+				.toList();
+		List<MenuItemIngredient> mappings = menuItemIngredientRepository.findByMenuItemIdIn(menuItemIds);
+
+		Map<Long, List<MenuItemIngredient>> mappingByMenuItem = new HashMap<>();
+		for (MenuItemIngredient mapping : mappings) {
+			mappingByMenuItem.computeIfAbsent(mapping.getMenuItem().getId(), id -> new ArrayList<>()).add(mapping);
+		}
+
+		Map<Long, MenuItemIngredient> ingredientSamples = new HashMap<>();
+		for (OrderItem orderItem : orderItems) {
+			List<MenuItemIngredient> itemMappings = mappingByMenuItem.getOrDefault(orderItem.getMenuItem().getId(), List.of());
+			for (MenuItemIngredient mapping : itemMappings) {
+				if (mapping.getQuantityRequired() == null || mapping.getQuantityRequired().signum() <= 0) {
+					throw new BadRequestException("Invalid ingredient quantity mapping for menu item "
+							+ orderItem.getMenuItem().getName());
+				}
+
+				BigDecimal required = mapping.getQuantityRequired()
+						.multiply(BigDecimal.valueOf(orderItem.getQuantity()))
+						.setScale(3, RoundingMode.HALF_UP);
+				requiredByIngredient.merge(mapping.getIngredient().getId(), required, BigDecimal::add);
+				ingredientSamples.putIfAbsent(mapping.getIngredient().getId(), mapping);
+			}
+		}
+
+		return ingredientSamples;
+	}
+
+	private void deductInventoryForConfirmation(
+			CustomerOrder order,
+			Map<Long, BigDecimal> requiredByIngredient,
+			Map<Long, MenuItemIngredient> ingredientSamples,
+			User actor) {
+		if (requiredByIngredient.isEmpty()) {
+			return;
+		}
+
+		List<InventoryItem> itemsToUpdate = new ArrayList<>();
+		List<InventoryMovement> movements = new ArrayList<>();
+
+		for (Map.Entry<Long, BigDecimal> entry : requiredByIngredient.entrySet()) {
+			Long ingredientId = entry.getKey();
+			BigDecimal requiredQty = entry.getValue().setScale(3, RoundingMode.HALF_UP);
+
+			InventoryItem inventoryItem = inventoryItemRepository.findByBranchIdAndIngredientId(order.getBranch().getId(), ingredientId)
+					.orElseThrow(() -> new BadRequestException("Insufficient stock: ingredient is missing in branch inventory"));
+
+			if (inventoryItem.getQuantityAvailable().compareTo(requiredQty) < 0) {
+				throw new BadRequestException("Insufficient stock for ingredient "
+						+ inventoryItem.getIngredient().getName()
+						+ ": required " + requiredQty + " " + inventoryItem.getIngredient().getUnit()
+						+ ", available " + inventoryItem.getQuantityAvailable() + " " + inventoryItem.getIngredient().getUnit());
+			}
+
+			inventoryItem.setQuantityAvailable(inventoryItem.getQuantityAvailable().subtract(requiredQty).setScale(3, RoundingMode.HALF_UP));
+			itemsToUpdate.add(inventoryItem);
+
+			MenuItemIngredient sample = ingredientSamples.get(ingredientId);
+			InventoryMovement movement = new InventoryMovement();
+			movement.setBranch(order.getBranch());
+			movement.setIngredient(sample.getIngredient());
+			movement.setMovementType(InventoryMovementType.DEDUCTION);
+			movement.setQuantityChanged(requiredQty.negate());
+			movement.setReferenceType("CUSTOMER_ORDER");
+			movement.setReferenceId(order.getId());
+			movement.setNotes("Auto deduction on order confirmation: " + order.getOrderNumber());
+			movement.setCreatedBy(actor);
+			movements.add(movement);
+		}
+
+		inventoryItemRepository.saveAll(itemsToUpdate);
+		inventoryMovementRepository.saveAll(movements);
 	}
 
 	private OrderSummaryResponse toOrderSummaryResponse(CustomerOrder order) {

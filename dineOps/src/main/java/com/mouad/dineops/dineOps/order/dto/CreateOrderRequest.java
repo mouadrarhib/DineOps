@@ -13,6 +13,7 @@ import jakarta.validation.constraints.Size;
 public record CreateOrderRequest(
 		@NotNull Long branchId,
 		@NotBlank @Size(max = 30) String source,
+		@DecimalMin(value = "0.0") BigDecimal taxRatePercent,
 		@DecimalMin(value = "0.0") BigDecimal taxAmount,
 		@Size(max = 255) String notes,
 		@NotEmpty List<@Valid CreateOrderItemRequest> items) {
