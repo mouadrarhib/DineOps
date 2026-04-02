@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.mouad.dineops.dineOps.common.response.ApiResponse;
+import com.mouad.dineops.dineOps.common.response.PagedResponse;
 import com.mouad.dineops.dineOps.menu.dto.CreateMenuCategoryRequest;
 import com.mouad.dineops.dineOps.menu.dto.MenuCategoryResponse;
 import com.mouad.dineops.dineOps.menu.dto.UpdateMenuCategoryRequest;
@@ -40,8 +41,15 @@ public class MenuCategoryController {
 	}
 
 	@GetMapping
-	public ApiResponse<List<MenuCategoryResponse>> listByBranch(@RequestParam Long branchId) {
-		return ApiResponse.success("Menu categories fetched successfully", menuCategoryService.listByBranch(branchId));
+	public ApiResponse<PagedResponse<MenuCategoryResponse>> listByBranch(
+			@RequestParam Long branchId,
+			@RequestParam(required = false) Boolean active,
+			@RequestParam(required = false) String search,
+			@RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "20") int size) {
+		return ApiResponse.success(
+				"Menu categories fetched successfully",
+				menuCategoryService.listByBranch(branchId, active, search, page, size));
 	}
 
 	@PutMapping("/{categoryId}")

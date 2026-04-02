@@ -1,8 +1,10 @@
 package com.mouad.dineops.dineOps.menu.service;
 
-import java.util.List;
 import java.util.Set;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -14,6 +16,7 @@ import com.mouad.dineops.dineOps.branch.repository.BranchRepository;
 import com.mouad.dineops.dineOps.common.enums.SystemRole;
 import com.mouad.dineops.dineOps.common.exception.ForbiddenException;
 import com.mouad.dineops.dineOps.common.exception.NotFoundException;
+import com.mouad.dineops.dineOps.common.response.PagedResponse;
 import com.mouad.dineops.dineOps.menu.dto.CreateMenuCategoryRequest;
 import com.mouad.dineops.dineOps.menu.dto.MenuCategoryResponse;
 import com.mouad.dineops.dineOps.menu.dto.UpdateMenuCategoryRequest;
@@ -59,13 +62,19 @@ public class MenuCategoryService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<MenuCategoryResponse> listByBranch(Long branchId) {
+	public PagedResponse<MenuCategoryResponse> listByBranch(
+			Long branchId,
+			Boolean active,
+			String search,
+			int page,
+			int size) {
 		enforceBranchScope(branchId);
 		findBranch(branchId);
-		return menuCategoryRepository.findByBranchIdOrderByDisplayOrderAscIdAsc(branchId)
-				.stream()
-				.map(this::toResponse)
-				.toList();
+
+		PageRequest pageRequest = PageRequest.of(page, size, Sort.by("displayOrder").ascending().and(Sort.by("id").ascending()));
+		Page<MenuCategory> rawPage = menuCategoryRepository.findPageByBranchAndFilters(branchId, active, search, pageRequest);
+		Page<MenuCategoryResponse> responsePage = rawPage.map(this::toResponse);
+		return PagedResponse.from(responsePage);
 	}
 
 	@Transactional
