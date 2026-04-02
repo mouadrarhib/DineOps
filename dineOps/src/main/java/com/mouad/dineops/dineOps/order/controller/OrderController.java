@@ -58,13 +58,13 @@ public class OrderController {
 	}
 
 	@PatchMapping("/{orderId}/start-preparation")
-	@PreAuthorize("hasAnyRole('SUPER_ADMIN','RESTAURANT_OWNER','BRANCH_MANAGER','KITCHEN_STAFF')")
+	@PreAuthorize("hasAnyRole('BRANCH_MANAGER','KITCHEN_STAFF')")
 	public ApiResponse<OrderResponse> startPreparation(@PathVariable Long orderId) {
 		return ApiResponse.success("Order moved to preparation successfully", orderService.startPreparation(orderId));
 	}
 
 	@PatchMapping("/{orderId}/ready")
-	@PreAuthorize("hasAnyRole('SUPER_ADMIN','RESTAURANT_OWNER','BRANCH_MANAGER','KITCHEN_STAFF')")
+	@PreAuthorize("hasAnyRole('BRANCH_MANAGER','KITCHEN_STAFF')")
 	public ApiResponse<OrderResponse> readyOrder(@PathVariable Long orderId) {
 		return ApiResponse.success("Order marked ready successfully", orderService.readyOrder(orderId));
 	}

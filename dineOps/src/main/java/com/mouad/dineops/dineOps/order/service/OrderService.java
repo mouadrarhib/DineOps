@@ -57,6 +57,24 @@ public class OrderService {
 			SystemRole.CASHIER.name(),
 			SystemRole.KITCHEN_STAFF.name());
 
+	private static final Set<String> ORDER_CREATION_ROLES = Set.of(
+			SystemRole.CASHIER.name(),
+			SystemRole.BRANCH_MANAGER.name(),
+			SystemRole.RESTAURANT_OWNER.name(),
+			SystemRole.SUPER_ADMIN.name());
+
+	private static final Set<String> KITCHEN_WORKFLOW_ROLES = Set.of(
+			SystemRole.KITCHEN_STAFF.name(),
+			SystemRole.BRANCH_MANAGER.name());
+
+	private static final Map<OrderStatus, Set<OrderStatus>> ALLOWED_TRANSITIONS = Map.of(
+			OrderStatus.PENDING, Set.of(OrderStatus.CONFIRMED, OrderStatus.CANCELED),
+			OrderStatus.CONFIRMED, Set.of(OrderStatus.IN_PREPARATION, OrderStatus.CANCELED),
+			OrderStatus.IN_PREPARATION, Set.of(OrderStatus.READY, OrderStatus.CANCELED),
+			OrderStatus.READY, Set.of(OrderStatus.COMPLETED, OrderStatus.CANCELED),
+			OrderStatus.COMPLETED, Set.of(),
+			OrderStatus.CANCELED, Set.of());
+
 	private static final Set<String> ALLOWED_SOURCES = Set.of("IN_STORE", "PHONE", "ONLINE");
 
 	private static final DateTimeFormatter ORDER_NUMBER_TIME_FORMAT =
@@ -95,6 +113,7 @@ public class OrderService {
 
 	@Transactional
 	public OrderResponse createOrder(CreateOrderRequest request) {
+		enforceOrderCreationRole();
 		Branch branch = findBranch(request.branchId());
 		enforceBranchScope(branch.getId());
 		ensureBranchActive(branch);
@@ -183,10 +202,7 @@ public class OrderService {
 	public OrderResponse confirmOrder(Long orderId) {
 		CustomerOrder order = findOrder(orderId);
 		enforceBranchScope(order.getBranch().getId());
-
-		if (order.getStatus() != OrderStatus.PENDING) {
-			throw new BadRequestException("Invalid order status transition from " + order.getStatus() + " to CONFIRMED");
-		}
+		validateTransition(order.getStatus(), OrderStatus.CONFIRMED);
 
 		ensureBranchActive(order.getBranch());
 		List<OrderItem> orderItems = orderItemRepository.findByOrderIdOrderByIdAsc(order.getId());
@@ -210,11 +226,13 @@ public class OrderService {
 
 	@Transactional
 	public OrderResponse startPreparation(Long orderId) {
+		enforceKitchenWorkflowRole();
 		return transitionOrder(orderId, OrderStatus.CONFIRMED, OrderStatus.IN_PREPARATION);
 	}
 
 	@Transactional
 	public OrderResponse readyOrder(Long orderId) {
+		enforceKitchenWorkflowRole();
 		return transitionOrder(orderId, OrderStatus.IN_PREPARATION, OrderStatus.READY);
 	}
 
@@ -227,10 +245,7 @@ public class OrderService {
 	public OrderResponse cancelOrder(Long orderId) {
 		CustomerOrder order = findOrder(orderId);
 		enforceBranchScope(order.getBranch().getId());
-
-		if (order.getStatus() == OrderStatus.COMPLETED || order.getStatus() == OrderStatus.CANCELED) {
-			throw new BadRequestException("Order in status " + order.getStatus() + " cannot be canceled");
-		}
+		validateTransition(order.getStatus(), OrderStatus.CANCELED);
 
 		order.setStatus(OrderStatus.CANCELED);
 		CustomerOrder saved = customerOrderRepository.save(order);
@@ -241,6 +256,7 @@ public class OrderService {
 	private OrderResponse transitionOrder(Long orderId, OrderStatus from, OrderStatus to) {
 		CustomerOrder order = findOrder(orderId);
 		enforceBranchScope(order.getBranch().getId());
+		validateTransition(order.getStatus(), to);
 
 		if (order.getStatus() != from) {
 			throw new BadRequestException("Invalid order status transition from " + order.getStatus() + " to " + to);
@@ -498,6 +514,35 @@ public class OrderService {
 		boolean assigned = staffAssignmentRepository.existsByUserIdAndBranchIdAndActiveTrue(principal.getId(), branchId);
 		if (!assigned) {
 			throw new ForbiddenException("Access denied for this branch");
+		}
+	}
+
+	private void enforceOrderCreationRole() {
+		AppUserPrincipal principal = getCurrentUserPrincipal();
+		if (principal == null) {
+			throw new ForbiddenException("Authentication is required");
+		}
+		boolean allowed = principal.getRoles().stream().anyMatch(ORDER_CREATION_ROLES::contains);
+		if (!allowed) {
+			throw new ForbiddenException("Only cashier or authorized roles can create orders");
+		}
+	}
+
+	private void enforceKitchenWorkflowRole() {
+		AppUserPrincipal principal = getCurrentUserPrincipal();
+		if (principal == null) {
+			throw new ForbiddenException("Authentication is required");
+		}
+		boolean allowed = principal.getRoles().stream().anyMatch(KITCHEN_WORKFLOW_ROLES::contains);
+		if (!allowed) {
+			throw new ForbiddenException("Only kitchen staff or branch manager can update kitchen workflow");
+		}
+	}
+
+	private void validateTransition(OrderStatus from, OrderStatus to) {
+		Set<OrderStatus> allowedNext = ALLOWED_TRANSITIONS.getOrDefault(from, Set.of());
+		if (!allowedNext.contains(to)) {
+			throw new BadRequestException("Invalid order status transition from " + from + " to " + to);
 		}
 	}
 
