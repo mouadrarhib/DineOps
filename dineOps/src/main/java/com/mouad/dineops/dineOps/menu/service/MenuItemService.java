@@ -13,6 +13,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.mouad.dineops.dineOps.audit.service.AuditLogService;
 import com.mouad.dineops.dineOps.auth.security.AppUserPrincipal;
 import com.mouad.dineops.dineOps.common.config.CacheConfig;
 import com.mouad.dineops.dineOps.common.enums.SystemRole;
@@ -40,14 +41,17 @@ public class MenuItemService {
 	private final MenuItemRepository menuItemRepository;
 	private final MenuCategoryRepository menuCategoryRepository;
 	private final StaffAssignmentRepository staffAssignmentRepository;
+	private final AuditLogService auditLogService;
 
 	public MenuItemService(
 			MenuItemRepository menuItemRepository,
 			MenuCategoryRepository menuCategoryRepository,
-			StaffAssignmentRepository staffAssignmentRepository) {
+			StaffAssignmentRepository staffAssignmentRepository,
+			AuditLogService auditLogService) {
 		this.menuItemRepository = menuItemRepository;
 		this.menuCategoryRepository = menuCategoryRepository;
 		this.staffAssignmentRepository = staffAssignmentRepository;
+		this.auditLogService = auditLogService;
 	}
 
 	@Transactional
@@ -68,7 +72,14 @@ public class MenuItemService {
 		item.setPreparationTimeMinutes(request.preparationTimeMinutes());
 		item.setActive(request.active() == null ? true : request.active());
 
-		return toResponse(menuItemRepository.save(item));
+		MenuItem saved = menuItemRepository.save(item);
+		auditLogService.log(
+				"MENU_UPDATED",
+				"MENU_ITEM",
+				saved.getId(),
+				saved.getCategory().getBranch().getId(),
+				"Updated menu item: " + saved.getName());
+		return toResponse(saved);
 	}
 
 	@Transactional(readOnly = true)

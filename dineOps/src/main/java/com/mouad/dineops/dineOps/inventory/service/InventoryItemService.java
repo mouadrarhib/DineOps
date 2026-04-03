@@ -10,6 +10,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.mouad.dineops.dineOps.audit.service.AuditLogService;
 import com.mouad.dineops.dineOps.auth.security.AppUserPrincipal;
 import com.mouad.dineops.dineOps.branch.entity.Branch;
 import com.mouad.dineops.dineOps.branch.repository.BranchRepository;
@@ -40,16 +41,19 @@ public class InventoryItemService {
 	private final BranchRepository branchRepository;
 	private final IngredientRepository ingredientRepository;
 	private final StaffAssignmentRepository staffAssignmentRepository;
+	private final AuditLogService auditLogService;
 
 	public InventoryItemService(
 			InventoryItemRepository inventoryItemRepository,
 			BranchRepository branchRepository,
 			IngredientRepository ingredientRepository,
-			StaffAssignmentRepository staffAssignmentRepository) {
+			StaffAssignmentRepository staffAssignmentRepository,
+			AuditLogService auditLogService) {
 		this.inventoryItemRepository = inventoryItemRepository;
 		this.branchRepository = branchRepository;
 		this.ingredientRepository = ingredientRepository;
 		this.staffAssignmentRepository = staffAssignmentRepository;
+		this.auditLogService = auditLogService;
 	}
 
 	@Transactional
@@ -105,7 +109,15 @@ public class InventoryItemService {
 		item.setQuantityAvailable(updatedQuantity);
 		item.setLastRestockedAt(Instant.now());
 
-		return toResponse(inventoryItemRepository.save(item));
+		InventoryItem saved = inventoryItemRepository.save(item);
+		auditLogService.log(
+				"INVENTORY_RESTOCK",
+				"INVENTORY_ITEM",
+				saved.getId(),
+				saved.getBranch().getId(),
+				"Restocked " + request.quantityAdded() + " " + saved.getIngredient().getUnit()
+						+ " of " + saved.getIngredient().getName());
+		return toResponse(saved);
 	}
 
 	@Transactional(readOnly = true)

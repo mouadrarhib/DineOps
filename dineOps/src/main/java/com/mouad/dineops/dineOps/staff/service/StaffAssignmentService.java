@@ -5,6 +5,7 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.mouad.dineops.dineOps.audit.service.AuditLogService;
 import com.mouad.dineops.dineOps.auth.entity.Role;
 import com.mouad.dineops.dineOps.auth.repository.RoleRepository;
 import com.mouad.dineops.dineOps.branch.entity.Branch;
@@ -31,16 +32,19 @@ public class StaffAssignmentService {
 	private final UserRepository userRepository;
 	private final BranchRepository branchRepository;
 	private final RoleRepository roleRepository;
+	private final AuditLogService auditLogService;
 
 	public StaffAssignmentService(
 			StaffAssignmentRepository staffAssignmentRepository,
 			UserRepository userRepository,
 			BranchRepository branchRepository,
-			RoleRepository roleRepository) {
+			RoleRepository roleRepository,
+			AuditLogService auditLogService) {
 		this.staffAssignmentRepository = staffAssignmentRepository;
 		this.userRepository = userRepository;
 		this.branchRepository = branchRepository;
 		this.roleRepository = roleRepository;
+		this.auditLogService = auditLogService;
 	}
 
 	@Transactional
@@ -72,6 +76,12 @@ public class StaffAssignmentService {
 		assignment.setActive(request.active() == null ? true : request.active());
 
 		StaffAssignment saved = staffAssignmentRepository.save(assignment);
+		auditLogService.log(
+				"ROLE_ASSIGNMENT",
+				"STAFF_ASSIGNMENT",
+				saved.getId(),
+				saved.getBranch().getId(),
+				"Assigned role " + saved.getRole().getName() + " to user " + saved.getUser().getEmail());
 
 		return new StaffAssignmentResponse(
 				saved.getId(),

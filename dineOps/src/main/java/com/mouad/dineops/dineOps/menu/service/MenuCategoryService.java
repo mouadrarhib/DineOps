@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.mouad.dineops.dineOps.auth.security.AppUserPrincipal;
 import com.mouad.dineops.dineOps.branch.entity.Branch;
 import com.mouad.dineops.dineOps.branch.repository.BranchRepository;
+import com.mouad.dineops.dineOps.audit.service.AuditLogService;
 import com.mouad.dineops.dineOps.common.config.CacheConfig;
 import com.mouad.dineops.dineOps.common.enums.SystemRole;
 import com.mouad.dineops.dineOps.common.exception.ForbiddenException;
@@ -39,14 +40,17 @@ public class MenuCategoryService {
 	private final MenuCategoryRepository menuCategoryRepository;
 	private final BranchRepository branchRepository;
 	private final StaffAssignmentRepository staffAssignmentRepository;
+	private final AuditLogService auditLogService;
 
 	public MenuCategoryService(
 			MenuCategoryRepository menuCategoryRepository,
 			BranchRepository branchRepository,
-			StaffAssignmentRepository staffAssignmentRepository) {
+			StaffAssignmentRepository staffAssignmentRepository,
+			AuditLogService auditLogService) {
 		this.menuCategoryRepository = menuCategoryRepository;
 		this.branchRepository = branchRepository;
 		this.staffAssignmentRepository = staffAssignmentRepository;
+		this.auditLogService = auditLogService;
 	}
 
 	@Transactional
@@ -65,6 +69,12 @@ public class MenuCategoryService {
 		category.setActive(request.active() == null ? true : request.active());
 
 		MenuCategory saved = menuCategoryRepository.save(category);
+		auditLogService.log(
+				"MENU_UPDATED",
+				"MENU_CATEGORY",
+				saved.getId(),
+				saved.getBranch().getId(),
+				"Updated menu category: " + saved.getName());
 		return toResponse(saved);
 	}
 

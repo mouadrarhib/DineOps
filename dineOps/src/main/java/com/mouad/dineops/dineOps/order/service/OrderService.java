@@ -18,6 +18,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.mouad.dineops.dineOps.audit.service.AuditLogService;
 import com.mouad.dineops.dineOps.auth.security.AppUserPrincipal;
 import com.mouad.dineops.dineOps.branch.entity.Branch;
 import com.mouad.dineops.dineOps.branch.repository.BranchRepository;
@@ -89,6 +90,7 @@ public class OrderService {
 	private final InventoryMovementRepository inventoryMovementRepository;
 	private final UserRepository userRepository;
 	private final StaffAssignmentRepository staffAssignmentRepository;
+	private final AuditLogService auditLogService;
 
 	public OrderService(
 			CustomerOrderRepository customerOrderRepository,
@@ -99,7 +101,8 @@ public class OrderService {
 			InventoryItemRepository inventoryItemRepository,
 			InventoryMovementRepository inventoryMovementRepository,
 			UserRepository userRepository,
-			StaffAssignmentRepository staffAssignmentRepository) {
+			StaffAssignmentRepository staffAssignmentRepository,
+			AuditLogService auditLogService) {
 		this.customerOrderRepository = customerOrderRepository;
 		this.orderItemRepository = orderItemRepository;
 		this.branchRepository = branchRepository;
@@ -109,6 +112,7 @@ public class OrderService {
 		this.inventoryMovementRepository = inventoryMovementRepository;
 		this.userRepository = userRepository;
 		this.staffAssignmentRepository = staffAssignmentRepository;
+		this.auditLogService = auditLogService;
 	}
 
 	@Transactional
@@ -249,6 +253,12 @@ public class OrderService {
 
 		order.setStatus(OrderStatus.CANCELED);
 		CustomerOrder saved = customerOrderRepository.save(order);
+		auditLogService.log(
+				"ORDER_CANCELED",
+				"CUSTOMER_ORDER",
+				saved.getId(),
+				saved.getBranch().getId(),
+				"Order " + saved.getOrderNumber() + " canceled");
 		List<OrderItem> items = orderItemRepository.findByOrderIdOrderByIdAsc(saved.getId());
 		return toOrderResponse(saved, items);
 	}

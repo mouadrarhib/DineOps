@@ -24,4 +24,10 @@ public interface CustomerOrderRepository extends JpaRepository<CustomerOrder, Lo
 			OrderStatus status,
 			Instant from,
 			Instant to);
+
+	List<CustomerOrder> findByCreatedAtBetween(Instant from, Instant to);
+
+	List<CustomerOrder> findByBranchIdAndCreatedAtBetween(Long branchId, Instant from, Instant to);
+
+	List<CustomerOrder> findByStatusAndCompletedAtBetween(OrderStatus status, Instant from, Instant to);
 }

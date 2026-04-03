@@ -10,6 +10,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.mouad.dineops.dineOps.audit.service.AuditLogService;
 import com.mouad.dineops.dineOps.auth.security.AppUserPrincipal;
 import com.mouad.dineops.dineOps.branch.dto.BranchResponse;
 import com.mouad.dineops.dineOps.branch.dto.CreateBranchRequest;
@@ -39,16 +40,19 @@ public class BranchService {
 	private final RestaurantRepository restaurantRepository;
 	private final StaffAssignmentRepository staffAssignmentRepository;
 	private final BranchMapper branchMapper;
+	private final AuditLogService auditLogService;
 
 	public BranchService(
 			BranchRepository branchRepository,
 			RestaurantRepository restaurantRepository,
 			StaffAssignmentRepository staffAssignmentRepository,
-			BranchMapper branchMapper) {
+			BranchMapper branchMapper,
+			AuditLogService auditLogService) {
 		this.branchRepository = branchRepository;
 		this.restaurantRepository = restaurantRepository;
 		this.staffAssignmentRepository = staffAssignmentRepository;
 		this.branchMapper = branchMapper;
+		this.auditLogService = auditLogService;
 	}
 
 	@Transactional
@@ -96,6 +100,12 @@ public class BranchService {
 		Restaurant restaurant = findRestaurant(request.restaurantId());
 		branchMapper.updateEntity(branch, request, restaurant);
 		Branch saved = branchRepository.save(branch);
+		auditLogService.log(
+				"BRANCH_UPDATED",
+				"BRANCH",
+				saved.getId(),
+				saved.getId(),
+				"Updated branch: " + saved.getName());
 		return branchMapper.toResponse(saved);
 	}
 
@@ -105,6 +115,7 @@ public class BranchService {
 		Branch branch = findBranch(branchId);
 		branch.setStatus(BranchStatus.ACTIVE);
 		Branch saved = branchRepository.save(branch);
+		auditLogService.log("BRANCH_UPDATED", "BRANCH", saved.getId(), saved.getId(), "Activated branch: " + saved.getName());
 		return branchMapper.toResponse(saved);
 	}
 
@@ -114,6 +125,7 @@ public class BranchService {
 		Branch branch = findBranch(branchId);
 		branch.setStatus(BranchStatus.INACTIVE);
 		Branch saved = branchRepository.save(branch);
+		auditLogService.log("BRANCH_UPDATED", "BRANCH", saved.getId(), saved.getId(), "Deactivated branch: " + saved.getName());
 		return branchMapper.toResponse(saved);
 	}
 
