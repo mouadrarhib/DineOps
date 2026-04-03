@@ -2,6 +2,9 @@ package com.mouad.dineops.dineOps.menu.service;
 
 import java.util.Set;
 
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -13,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.mouad.dineops.dineOps.auth.security.AppUserPrincipal;
 import com.mouad.dineops.dineOps.branch.entity.Branch;
 import com.mouad.dineops.dineOps.branch.repository.BranchRepository;
+import com.mouad.dineops.dineOps.common.config.CacheConfig;
 import com.mouad.dineops.dineOps.common.enums.SystemRole;
 import com.mouad.dineops.dineOps.common.exception.ForbiddenException;
 import com.mouad.dineops.dineOps.common.exception.NotFoundException;
@@ -46,6 +50,9 @@ public class MenuCategoryService {
 	}
 
 	@Transactional
+	@Caching(evict = {
+			@CacheEvict(value = CacheConfig.MENU_CATEGORIES_BY_BRANCH, allEntries = true),
+			@CacheEvict(value = CacheConfig.MENU_ITEMS_BY_BRANCH, allEntries = true) })
 	public MenuCategoryResponse createCategory(CreateMenuCategoryRequest request) {
 		enforceBranchScope(request.branchId());
 		Branch branch = findBranch(request.branchId());
@@ -62,6 +69,9 @@ public class MenuCategoryService {
 	}
 
 	@Transactional(readOnly = true)
+	@Cacheable(
+			value = CacheConfig.MENU_CATEGORIES_BY_BRANCH,
+			key = "#branchId + ':' + #active + ':' + #search + ':' + #page + ':' + #size")
 	public PagedResponse<MenuCategoryResponse> listByBranch(
 			Long branchId,
 			Boolean active,
@@ -78,6 +88,9 @@ public class MenuCategoryService {
 	}
 
 	@Transactional
+	@Caching(evict = {
+			@CacheEvict(value = CacheConfig.MENU_CATEGORIES_BY_BRANCH, allEntries = true),
+			@CacheEvict(value = CacheConfig.MENU_ITEMS_BY_BRANCH, allEntries = true) })
 	public MenuCategoryResponse updateCategory(Long categoryId, UpdateMenuCategoryRequest request) {
 		MenuCategory category = findCategory(categoryId);
 		enforceBranchScope(category.getBranch().getId());
@@ -94,6 +107,9 @@ public class MenuCategoryService {
 	}
 
 	@Transactional
+	@Caching(evict = {
+			@CacheEvict(value = CacheConfig.MENU_CATEGORIES_BY_BRANCH, allEntries = true),
+			@CacheEvict(value = CacheConfig.MENU_ITEMS_BY_BRANCH, allEntries = true) })
 	public MenuCategoryResponse activateCategory(Long categoryId) {
 		MenuCategory category = findCategory(categoryId);
 		enforceBranchScope(category.getBranch().getId());
@@ -102,6 +118,9 @@ public class MenuCategoryService {
 	}
 
 	@Transactional
+	@Caching(evict = {
+			@CacheEvict(value = CacheConfig.MENU_CATEGORIES_BY_BRANCH, allEntries = true),
+			@CacheEvict(value = CacheConfig.MENU_ITEMS_BY_BRANCH, allEntries = true) })
 	public MenuCategoryResponse deactivateCategory(Long categoryId) {
 		MenuCategory category = findCategory(categoryId);
 		enforceBranchScope(category.getBranch().getId());

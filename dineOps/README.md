@@ -107,3 +107,61 @@ Notes:
 - `local` uses local-friendly defaults and supports `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` overrides.
 - `test` uses `TEST_DB_URL`, `TEST_DB_USERNAME`, `TEST_DB_PASSWORD` and disables Flyway.
 - `prod` requires `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`.
+
+## Caching strategy (Phase 9)
+
+Read-heavy endpoints are cached with Spring Cache using a Redis-ready cache manager.
+
+### Cached endpoints
+
+- menu categories by branch (paginated/filter key)
+- menu items by branch (paginated/filter key)
+- branch details by branch id
+
+### Cache names and TTL
+
+- `menuCategoriesByBranch` - default 10 minutes
+- `menuItemsByBranch` - default 5 minutes
+- `branchDetails` - default 30 minutes
+
+### Cache backend behavior
+
+- `app.cache.enabled=true` enables caching
+- `app.cache.redis-enabled=true` uses Redis cache manager
+- `app.cache.redis-enabled=false` uses in-memory cache manager (local fallback)
+- `app.cache.enabled=false` disables caching (no-op manager)
+
+Relevant config keys in `application.yml`:
+
+- `spring.data.redis.host`
+- `spring.data.redis.port`
+- `spring.data.redis.timeout`
+- `app.cache.*`
+
+### Cache eviction policy
+
+To keep cached reads consistent, menu cache entries are evicted on menu/category writes:
+
+- category create/update/activate/deactivate evicts category and item caches
+- menu item create/update/availability toggle evicts item cache
+
+Branch detail cache is evicted on branch create/update/activate/deactivate.
+
+### Response-time benchmark (local)
+
+Measured using repeated authenticated requests to read-heavy endpoints.
+
+- caching OFF (avg ms)
+  - menu categories: `272.79`
+  - menu items: `558.68`
+  - branch details: `199.22`
+- caching ON (avg ms)
+  - menu categories: `99.54`
+  - menu items: `86.44`
+  - branch details: `90.70`
+
+This shows a clear performance improvement story for repeated reads.
+
+Detailed Redis usage and access guide:
+
+- `docs/dineops-redis-caching-guide.md`

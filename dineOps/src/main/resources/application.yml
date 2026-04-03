@@ -13,6 +13,11 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
     show-sql: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: ${REDIS_TIMEOUT:2s}
 
 management:
   endpoints:
@@ -60,3 +65,10 @@ app:
     reservation-reminder-cron: ${RESERVATION_REMINDER_CRON:0 */10 * * * *}
     daily-sales-summary-cron: ${DAILY_SALES_SUMMARY_CRON:0 10 0 * * *}
     refresh-token-cleanup-cron: ${REFRESH_TOKEN_CLEANUP_CRON:0 0 */6 * * *}
+  cache:
+    enabled: ${APP_CACHE_ENABLED:true}
+    redis-enabled: ${APP_CACHE_REDIS_ENABLED:false}
+    ttl:
+      menu-categories-minutes: ${APP_CACHE_TTL_MENU_CATEGORIES_MINUTES:10}
+      menu-items-minutes: ${APP_CACHE_TTL_MENU_ITEMS_MINUTES:5}
+      branch-details-minutes: ${APP_CACHE_TTL_BRANCH_DETAILS_MINUTES:30}

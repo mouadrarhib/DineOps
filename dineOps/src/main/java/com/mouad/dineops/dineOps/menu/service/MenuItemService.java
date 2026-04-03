@@ -3,6 +3,8 @@ package com.mouad.dineops.dineOps.menu.service;
 import java.util.List;
 import java.util.Set;
 
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -12,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.mouad.dineops.dineOps.auth.security.AppUserPrincipal;
+import com.mouad.dineops.dineOps.common.config.CacheConfig;
 import com.mouad.dineops.dineOps.common.enums.SystemRole;
 import com.mouad.dineops.dineOps.common.exception.BadRequestException;
 import com.mouad.dineops.dineOps.common.exception.ForbiddenException;
@@ -48,6 +51,7 @@ public class MenuItemService {
 	}
 
 	@Transactional
+	@CacheEvict(value = CacheConfig.MENU_ITEMS_BY_BRANCH, allEntries = true)
 	public MenuItemResponse createMenuItem(CreateMenuItemRequest request) {
 		enforceBranchScope(request.branchId());
 		MenuCategory category = findCategory(request.categoryId());
@@ -68,6 +72,9 @@ public class MenuItemService {
 	}
 
 	@Transactional(readOnly = true)
+	@Cacheable(
+			value = CacheConfig.MENU_ITEMS_BY_BRANCH,
+			key = "#branchId + ':' + #active + ':' + #available + ':' + #search + ':' + #page + ':' + #size")
 	public PagedResponse<MenuItemResponse> listByBranch(
 			Long branchId,
 			Boolean active,
@@ -91,6 +98,7 @@ public class MenuItemService {
 	}
 
 	@Transactional
+	@CacheEvict(value = CacheConfig.MENU_ITEMS_BY_BRANCH, allEntries = true)
 	public MenuItemResponse updateMenuItem(Long menuItemId, UpdateMenuItemRequest request) {
 		MenuItem item = findMenuItem(menuItemId);
 		MenuCategory category = findCategory(request.categoryId());
@@ -118,6 +126,7 @@ public class MenuItemService {
 	}
 
 	@Transactional
+	@CacheEvict(value = CacheConfig.MENU_ITEMS_BY_BRANCH, allEntries = true)
 	public MenuItemResponse toggleAvailability(Long menuItemId, boolean available) {
 		MenuItem item = findMenuItem(menuItemId);
 		enforceBranchScope(item.getCategory().getBranch().getId());

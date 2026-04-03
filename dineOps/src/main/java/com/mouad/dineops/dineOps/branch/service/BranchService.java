@@ -3,6 +3,8 @@ package com.mouad.dineops.dineOps.branch.service;
 import java.util.List;
 import java.util.Set;
 
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -15,6 +17,7 @@ import com.mouad.dineops.dineOps.branch.dto.UpdateBranchRequest;
 import com.mouad.dineops.dineOps.branch.entity.Branch;
 import com.mouad.dineops.dineOps.branch.mapper.BranchMapper;
 import com.mouad.dineops.dineOps.branch.repository.BranchRepository;
+import com.mouad.dineops.dineOps.common.config.CacheConfig;
 import com.mouad.dineops.dineOps.common.enums.BranchStatus;
 import com.mouad.dineops.dineOps.common.enums.SystemRole;
 import com.mouad.dineops.dineOps.common.exception.ForbiddenException;
@@ -49,6 +52,7 @@ public class BranchService {
 	}
 
 	@Transactional
+	@CacheEvict(value = CacheConfig.BRANCH_DETAILS, allEntries = true)
 	public BranchResponse createBranch(CreateBranchRequest request) {
 		Restaurant restaurant = findRestaurant(request.restaurantId());
 		Branch branch = branchMapper.toEntity(request, restaurant);
@@ -78,6 +82,7 @@ public class BranchService {
 	}
 
 	@Transactional(readOnly = true)
+	@Cacheable(value = CacheConfig.BRANCH_DETAILS, key = "#branchId")
 	public BranchResponse getBranchById(Long branchId) {
 		Branch branch = findBranch(branchId);
 		enforceBranchScope(branch.getId());
@@ -85,6 +90,7 @@ public class BranchService {
 	}
 
 	@Transactional
+	@CacheEvict(value = CacheConfig.BRANCH_DETAILS, allEntries = true)
 	public BranchResponse updateBranch(Long branchId, UpdateBranchRequest request) {
 		Branch branch = findBranch(branchId);
 		Restaurant restaurant = findRestaurant(request.restaurantId());
@@ -94,6 +100,7 @@ public class BranchService {
 	}
 
 	@Transactional
+	@CacheEvict(value = CacheConfig.BRANCH_DETAILS, allEntries = true)
 	public BranchResponse activateBranch(Long branchId) {
 		Branch branch = findBranch(branchId);
 		branch.setStatus(BranchStatus.ACTIVE);
@@ -102,6 +109,7 @@ public class BranchService {
 	}
 
 	@Transactional
+	@CacheEvict(value = CacheConfig.BRANCH_DETAILS, allEntries = true)
 	public BranchResponse deactivateBranch(Long branchId) {
 		Branch branch = findBranch(branchId);
 		branch.setStatus(BranchStatus.INACTIVE);
