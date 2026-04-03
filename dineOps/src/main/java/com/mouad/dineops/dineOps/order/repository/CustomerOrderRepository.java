@@ -1,5 +1,6 @@
 package com.mouad.dineops.dineOps.order.repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,4 +18,10 @@ public interface CustomerOrderRepository extends JpaRepository<CustomerOrder, Lo
 	List<CustomerOrder> findByBranchIdOrderByCreatedAtDesc(Long branchId);
 
 	List<CustomerOrder> findByBranchIdAndStatusOrderByCreatedAtDesc(Long branchId, OrderStatus status);
+
+	List<CustomerOrder> findByBranchIdAndStatusAndCompletedAtBetween(
+			Long branchId,
+			OrderStatus status,
+			Instant from,
+			Instant to);
 }

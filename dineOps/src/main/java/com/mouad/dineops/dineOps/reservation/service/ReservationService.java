@@ -20,6 +20,7 @@ import com.mouad.dineops.dineOps.common.enums.SystemRole;
 import com.mouad.dineops.dineOps.common.exception.BadRequestException;
 import com.mouad.dineops.dineOps.common.exception.ForbiddenException;
 import com.mouad.dineops.dineOps.common.exception.NotFoundException;
+import com.mouad.dineops.dineOps.notification.service.NotificationService;
 import com.mouad.dineops.dineOps.reservation.dto.CreateReservationRequest;
 import com.mouad.dineops.dineOps.reservation.dto.ReservationResponse;
 import com.mouad.dineops.dineOps.reservation.entity.Reservation;
@@ -37,14 +38,17 @@ public class ReservationService {
 	private final ReservationRepository reservationRepository;
 	private final BranchRepository branchRepository;
 	private final StaffAssignmentRepository staffAssignmentRepository;
+	private final NotificationService notificationService;
 
 	public ReservationService(
 			ReservationRepository reservationRepository,
 			BranchRepository branchRepository,
-			StaffAssignmentRepository staffAssignmentRepository) {
+			StaffAssignmentRepository staffAssignmentRepository,
+			NotificationService notificationService) {
 		this.reservationRepository = reservationRepository;
 		this.branchRepository = branchRepository;
 		this.staffAssignmentRepository = staffAssignmentRepository;
+		this.notificationService = notificationService;
 	}
 
 	@Transactional
@@ -89,7 +93,26 @@ public class ReservationService {
 		validateReservationTime(reservation.getBranch(), reservation.getReservationTime());
 
 		reservation.setStatus(ReservationStatus.APPROVED);
-		return toResponse(reservationRepository.save(reservation));
+		Reservation saved = reservationRepository.save(reservation);
+
+		notificationService.sendInternal(
+				"reservation:" + saved.getId(),
+				"Reservation approved",
+				"Reservation for " + saved.getCustomerName() + " has been approved.",
+				"RESERVATION",
+				saved.getId());
+
+		if (saved.getCustomerEmail() != null) {
+			notificationService.sendEmail(
+					saved.getCustomerEmail(),
+					"Your reservation is approved",
+					"Hello " + saved.getCustomerName()
+							+ ", your reservation at " + saved.getReservationTime() + " has been approved.",
+					"RESERVATION",
+					saved.getId());
+		}
+
+		return toResponse(saved);
 	}
 
 	@Transactional
