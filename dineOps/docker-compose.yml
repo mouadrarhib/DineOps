@@ -16,11 +16,15 @@ services:
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: dineops
       SPRING_RABBITMQ_PASSWORD: dineops123
+      APP_CACHE_ENABLED: true
+      APP_CACHE_REDIS_ENABLED: true
     ports:
       - "8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
 
   postgres:
     image: postgres:17
@@ -35,7 +39,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d dineops"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d dineops" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -46,6 +50,17 @@ services:
     restart: unless-stopped
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: dineops-redisinsight
+    restart: unless-stopped
+    ports:
+      - "5540:5540"
+    depends_on:
+      - redis
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -60,3 +75,4 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:

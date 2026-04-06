@@ -17,6 +17,12 @@ public class DineOpsApplication {
 	@Value("${server.servlet.context-path:}")
 	private String contextPath;
 
+	@Value("${spring.data.redis.host:localhost}")
+	private String redisHost;
+
+	@Value("${spring.data.redis.port:6379}")
+	private String redisPort;
+
 	public static void main(String[] args) {
 		SpringApplication application = new SpringApplication(DineOpsApplication.class);
 		String activeProfile = System.getProperty("spring.profiles.active");
@@ -32,6 +38,7 @@ public class DineOpsApplication {
 	public void onApplicationReady() {
 		System.out.println("*********************** DineOps is running successfully. ***********************");
 		System.out.println("Swagger UI: http://localhost:" + serverPort + contextPath + "/swagger-ui.html");
+		System.out.println("Redis URL: redis://" + redisHost + ":" + redisPort);
 	}
 
 }
