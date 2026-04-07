@@ -86,7 +86,7 @@ public class BranchService {
 	}
 
 	@Transactional(readOnly = true)
-	@Cacheable(value = CacheConfig.BRANCH_DETAILS, key = "#branchId")
+	@Cacheable(value = CacheConfig.BRANCH_DETAILS, key = "#branchId.toString()")
 	public BranchResponse getBranchById(Long branchId) {
 		Branch branch = findBranch(branchId);
 		enforceBranchScope(branch.getId());
