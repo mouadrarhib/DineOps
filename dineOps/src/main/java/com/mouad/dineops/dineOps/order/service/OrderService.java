@@ -29,6 +29,7 @@ import com.mouad.dineops.dineOps.common.enums.SystemRole;
 import com.mouad.dineops.dineOps.common.exception.BadRequestException;
 import com.mouad.dineops.dineOps.common.exception.ForbiddenException;
 import com.mouad.dineops.dineOps.common.exception.NotFoundException;
+import com.mouad.dineops.dineOps.common.messaging.EventPublisher;
 import com.mouad.dineops.dineOps.inventory.entity.InventoryItem;
 import com.mouad.dineops.dineOps.inventory.entity.InventoryMovement;
 import com.mouad.dineops.dineOps.inventory.repository.InventoryItemRepository;
@@ -44,6 +45,7 @@ import com.mouad.dineops.dineOps.order.dto.OrderResponse;
 import com.mouad.dineops.dineOps.order.dto.OrderSummaryResponse;
 import com.mouad.dineops.dineOps.order.entity.CustomerOrder;
 import com.mouad.dineops.dineOps.order.entity.OrderItem;
+import com.mouad.dineops.dineOps.notification.event.OrderConfirmedEvent;
 import com.mouad.dineops.dineOps.order.repository.CustomerOrderRepository;
 import com.mouad.dineops.dineOps.order.repository.OrderItemRepository;
 import com.mouad.dineops.dineOps.staff.repository.StaffAssignmentRepository;
@@ -91,6 +93,7 @@ public class OrderService {
 	private final UserRepository userRepository;
 	private final StaffAssignmentRepository staffAssignmentRepository;
 	private final AuditLogService auditLogService;
+	private final EventPublisher eventPublisher;
 
 	public OrderService(
 			CustomerOrderRepository customerOrderRepository,
@@ -102,7 +105,8 @@ public class OrderService {
 			InventoryMovementRepository inventoryMovementRepository,
 			UserRepository userRepository,
 			StaffAssignmentRepository staffAssignmentRepository,
-			AuditLogService auditLogService) {
+			AuditLogService auditLogService,
+			EventPublisher eventPublisher) {
 		this.customerOrderRepository = customerOrderRepository;
 		this.orderItemRepository = orderItemRepository;
 		this.branchRepository = branchRepository;
@@ -113,6 +117,7 @@ public class OrderService {
 		this.userRepository = userRepository;
 		this.staffAssignmentRepository = staffAssignmentRepository;
 		this.auditLogService = auditLogService;
+		this.eventPublisher = eventPublisher;
 	}
 
 	@Transactional
@@ -225,6 +230,14 @@ public class OrderService {
 		order.setStatus(OrderStatus.CONFIRMED);
 		order.setConfirmedAt(Instant.now());
 		CustomerOrder saved = customerOrderRepository.save(order);
+		eventPublisher.publish(
+				"dineops.event.order.confirmed",
+				new OrderConfirmedEvent(
+						saved.getId(),
+						saved.getOrderNumber(),
+						saved.getBranch().getId(),
+						saved.getTotalAmount(),
+						saved.getConfirmedAt()));
 		return toOrderResponse(saved, orderItems);
 	}
 

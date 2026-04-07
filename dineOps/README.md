@@ -165,3 +165,37 @@ This shows a clear performance improvement story for repeated reads.
 Detailed Redis usage and access guide:
 
 - `docs/dineops-redis-caching-guide.md`
+
+## Async messaging strategy (Phase 11)
+
+RabbitMQ now powers domain-event processing for notifications.
+
+- services/jobs publish `OrderConfirmedEvent`, `ReservationApprovedEvent`, and `LowStockDetectedEvent`
+- event consumers process those events asynchronously and call `NotificationService`
+- reservation approval notifications and low-stock manager alerts now run in async consumers
+- this decouples operational notification workloads from synchronous API/request flow
+
+### RabbitMQ properties
+
+- `spring.rabbitmq.host`
+- `spring.rabbitmq.port`
+- `spring.rabbitmq.username`
+- `spring.rabbitmq.password`
+- `app.messaging.rabbit.enabled`
+- `app.messaging.events.exchange`
+- `app.messaging.events.order-confirmed.*`
+- `app.messaging.events.reservation-approved.*`
+- `app.messaging.events.low-stock-detected.*`
+
+### RabbitMQ smoke test
+
+Run an end-to-end Docker smoke test (topology + publish + consume + DB verification):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\rabbitmq-smoke-test.ps1
+```
+
+Useful flags:
+
+- `-SkipComposeUp` skips `docker compose up`
+- `-NoBuild` uses compose up without image rebuild

@@ -19,16 +19,16 @@ import com.mouad.dineops.dineOps.common.enums.BranchStatus;
 import com.mouad.dineops.dineOps.common.enums.NotificationType;
 import com.mouad.dineops.dineOps.common.enums.OrderStatus;
 import com.mouad.dineops.dineOps.common.enums.ReservationStatus;
+import com.mouad.dineops.dineOps.common.messaging.EventPublisher;
 import com.mouad.dineops.dineOps.inventory.entity.InventoryItem;
 import com.mouad.dineops.dineOps.inventory.repository.InventoryItemRepository;
 import com.mouad.dineops.dineOps.notification.repository.NotificationRepository;
 import com.mouad.dineops.dineOps.notification.service.NotificationService;
+import com.mouad.dineops.dineOps.notification.event.LowStockDetectedEvent;
 import com.mouad.dineops.dineOps.order.entity.CustomerOrder;
 import com.mouad.dineops.dineOps.order.repository.CustomerOrderRepository;
 import com.mouad.dineops.dineOps.reservation.entity.Reservation;
 import com.mouad.dineops.dineOps.reservation.repository.ReservationRepository;
-import com.mouad.dineops.dineOps.staff.entity.StaffAssignment;
-import com.mouad.dineops.dineOps.staff.repository.StaffAssignmentRepository;
 
 @Component
 public class OperationsScheduledJobs {
@@ -40,9 +40,9 @@ public class OperationsScheduledJobs {
 	private final ReservationRepository reservationRepository;
 	private final CustomerOrderRepository customerOrderRepository;
 	private final RefreshTokenRepository refreshTokenRepository;
-	private final StaffAssignmentRepository staffAssignmentRepository;
 	private final NotificationRepository notificationRepository;
 	private final NotificationService notificationService;
+	private final EventPublisher eventPublisher;
 
 	public OperationsScheduledJobs(
 			BranchRepository branchRepository,
@@ -50,17 +50,17 @@ public class OperationsScheduledJobs {
 			ReservationRepository reservationRepository,
 			CustomerOrderRepository customerOrderRepository,
 			RefreshTokenRepository refreshTokenRepository,
-			StaffAssignmentRepository staffAssignmentRepository,
 			NotificationRepository notificationRepository,
-			NotificationService notificationService) {
+			NotificationService notificationService,
+			EventPublisher eventPublisher) {
 		this.branchRepository = branchRepository;
 		this.inventoryItemRepository = inventoryItemRepository;
 		this.reservationRepository = reservationRepository;
 		this.customerOrderRepository = customerOrderRepository;
 		this.refreshTokenRepository = refreshTokenRepository;
-		this.staffAssignmentRepository = staffAssignmentRepository;
 		this.notificationRepository = notificationRepository;
 		this.notificationService = notificationService;
+		this.eventPublisher = eventPublisher;
 	}
 
 	@Scheduled(cron = "${app.jobs.low-stock-cron:0 */15 * * * *}")
@@ -78,8 +78,15 @@ public class OperationsScheduledJobs {
 					})
 					.toList();
 
-			if (!lowStock.isEmpty()) {
-				notifyBranchManagersLowStock(branch, lowStock);
+			for (InventoryItem item : lowStock) {
+				eventPublisher.publish(
+						"dineops.event.low-stock.detected",
+						new LowStockDetectedEvent(
+								branch.getId(),
+								item.getId(),
+								item.getIngredient().getName(),
+								item.getQuantityAvailable(),
+								item.getIngredient().getUnit()));
 			}
 		}
 	}
@@ -174,22 +181,4 @@ public class OperationsScheduledJobs {
 		log.info("Refresh token cleanup done: expired={}, revokedExpired={}", expired, revokedExpired);
 	}
 
-	private void notifyBranchManagersLowStock(Branch branch, List<InventoryItem> lowStockItems) {
-		List<StaffAssignment> managers = staffAssignmentRepository.findActiveByBranchIdAndRoleNameWithUser(
-				branch.getId(),
-				"BRANCH_MANAGER");
-
-		for (InventoryItem item : lowStockItems) {
-			String message = "Low stock alert: " + item.getIngredient().getName()
-					+ " is at " + item.getQuantityAvailable() + " " + item.getIngredient().getUnit();
-			for (StaffAssignment manager : managers) {
-				notificationService.sendInternal(
-						manager.getUser().getEmail(),
-						"Low stock alert",
-						message,
-						"LOW_STOCK",
-						item.getId());
-			}
-		}
-	}
 }

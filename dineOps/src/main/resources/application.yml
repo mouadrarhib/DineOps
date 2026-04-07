@@ -20,6 +20,11 @@ spring:
       timeout: ${REDIS_TIMEOUT:2s}
       repositories:
         enabled: false
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
 
 management:
   endpoints:
@@ -77,3 +82,17 @@ app:
       menu-categories-minutes: ${APP_CACHE_TTL_MENU_CATEGORIES_MINUTES:10}
       menu-items-minutes: ${APP_CACHE_TTL_MENU_ITEMS_MINUTES:5}
       branch-details-minutes: ${APP_CACHE_TTL_BRANCH_DETAILS_MINUTES:30}
+  messaging:
+    rabbit:
+      enabled: ${APP_MESSAGING_RABBIT_ENABLED:false}
+    events:
+      exchange: ${APP_MESSAGING_EVENTS_EXCHANGE:dineops.events.exchange}
+      order-confirmed:
+        queue: ${APP_MESSAGING_EVENTS_ORDER_CONFIRMED_QUEUE:dineops.events.order-confirmed.queue}
+        routing-key: ${APP_MESSAGING_EVENTS_ORDER_CONFIRMED_ROUTING_KEY:dineops.event.order.confirmed}
+      reservation-approved:
+        queue: ${APP_MESSAGING_EVENTS_RESERVATION_APPROVED_QUEUE:dineops.events.reservation-approved.queue}
+        routing-key: ${APP_MESSAGING_EVENTS_RESERVATION_APPROVED_ROUTING_KEY:dineops.event.reservation.approved}
+      low-stock-detected:
+        queue: ${APP_MESSAGING_EVENTS_LOW_STOCK_DETECTED_QUEUE:dineops.events.low-stock-detected.queue}
+        routing-key: ${APP_MESSAGING_EVENTS_LOW_STOCK_DETECTED_ROUTING_KEY:dineops.event.low-stock.detected}
