@@ -12,6 +12,7 @@ services:
       DB_PASSWORD: postgres
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-dineopsredis123}
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: dineops
@@ -48,10 +49,26 @@ services:
     image: redis:7-alpine
     container_name: dineops-redis
     restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --save
+      - "60"
+      - "1000"
+      - --maxmemory-policy
+      - allkeys-lru
+      - --requirepass
+      - ${REDIS_PASSWORD:-dineopsredis123}
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD:-dineopsredis123} ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redisinsight:
     image: redis/redisinsight:latest
